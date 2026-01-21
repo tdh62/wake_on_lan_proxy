@@ -1,0 +1,47 @@
+# Git相关
+.git
+.gitignore
+.gitattributes
+
+# 编译产物
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+wol-service
+wol-service.exe
+
+# 测试相关
+*.test
+*.out
+coverage.out
+coverage.html
+
+# IDE和编辑器
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 文档
+README.md
+LICENSE
+*.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Docker相关
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# 其他
+tmp/
+temp/
+*.log
