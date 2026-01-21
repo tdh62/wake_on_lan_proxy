@@ -52,7 +52,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 40px;
-            max-width: 500px;
+            max-width: 600px;
             width: 100%;
         }
         h1 {
@@ -61,8 +61,14 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
             margin-bottom: 30px;
             font-size: 28px;
         }
+        h2 {
+            color: #555;
+            font-size: 18px;
+            margin-bottom: 15px;
+            margin-top: 30px;
+        }
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
         label {
             display: block;
@@ -123,6 +129,78 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .history-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e0e0;
+        }
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .clear-all-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #dc3545;
+            width: auto;
+        }
+        .clear-all-btn:hover {
+            background: #c82333;
+        }
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .history-item {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-item:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+        .history-info {
+            flex: 1;
+        }
+        .history-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .history-details {
+            font-size: 12px;
+            color: #666;
+        }
+        .history-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .delete-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #dc3545;
+            width: auto;
+        }
+        .delete-btn:hover {
+            background: #c82333;
+        }
+        .empty-history {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -133,7 +211,12 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
             {{.Message}}
         </div>
         {{end}}
-        <form action="/wake" method="POST">
+        <form action="/wake" method="POST" id="wakeForm" onsubmit="saveToHistory(event)">
+            <div class="form-group">
+                <label for="deviceName">设备名称（可选）</label>
+                <input type="text" id="deviceName" name="deviceName" placeholder="例如: 我的电脑">
+                <div class="hint">为设备设置一个易记的名称</div>
+            </div>
             <div class="form-group">
                 <label for="mac">目标设备MAC地址</label>
                 <input type="text" id="mac" name="mac" placeholder="例如: AA:BB:CC:DD:EE:FF" required>
@@ -146,7 +229,140 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
             </div>
             <button type="submit">发送唤醒包</button>
         </form>
+
+        <div class="history-section">
+            <div class="history-header">
+                <h2>📋 历史记录</h2>
+                <button class="clear-all-btn" onclick="clearAllHistory()">清空全部</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="empty-history">暂无历史记录</div>
+            </div>
+        </div>
     </div>
+
+    <script>
+        const MAX_HISTORY = 10;
+
+        // 页面加载时显示历史记录
+        window.onload = function() {
+            displayHistory();
+        };
+
+        // 保存到历史记录
+        function saveToHistory(event) {
+            const deviceName = document.getElementById('deviceName').value.trim();
+            const mac = document.getElementById('mac').value.trim();
+            const ip = document.getElementById('ip').value.trim();
+
+            if (!mac) return;
+
+            const record = {
+                deviceName: deviceName || mac,
+                mac: mac,
+                ip: ip,
+                timestamp: new Date().toISOString()
+            };
+
+            let history = getHistory();
+
+            // 检查是否已存在相同MAC地址的记录，如果存在则更新
+            const existingIndex = history.findIndex(item => item.mac.toLowerCase() === mac.toLowerCase());
+            if (existingIndex !== -1) {
+                history.splice(existingIndex, 1);
+            }
+
+            // 添加到开头
+            history.unshift(record);
+
+            // 限制历史记录数量
+            if (history.length > MAX_HISTORY) {
+                history = history.slice(0, MAX_HISTORY);
+            }
+
+            localStorage.setItem('wolHistory', JSON.stringify(history));
+        }
+
+        // 获取历史记录
+        function getHistory() {
+            const history = localStorage.getItem('wolHistory');
+            return history ? JSON.parse(history) : [];
+        }
+
+        // 显示历史记录
+        function displayHistory() {
+            const history = getHistory();
+            const historyList = document.getElementById('historyList');
+
+            if (history.length === 0) {
+                historyList.innerHTML = '<div class="empty-history">暂无历史记录</div>';
+                return;
+            }
+
+            historyList.innerHTML = history.map((record, index) => {
+                const date = new Date(record.timestamp);
+                const dateStr = date.toLocaleString('zh-CN', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return ` + "`" + `
+                    <div class="history-item" onclick="loadFromHistory(${index})">
+                        <div class="history-info">
+                            <div class="history-name">${escapeHtml(record.deviceName)}</div>
+                            <div class="history-details">MAC: ${escapeHtml(record.mac)} | IP: ${escapeHtml(record.ip)} | ${dateStr}</div>
+                        </div>
+                        <div class="history-actions">
+                            <button class="delete-btn" onclick="deleteHistory(event, ${index})">删除</button>
+                        </div>
+                    </div>
+                ` + "`" + `;
+            }).join('');
+        }
+
+        // 从历史记录加载
+        function loadFromHistory(index) {
+            const history = getHistory();
+            if (index >= 0 && index < history.length) {
+                const record = history[index];
+                document.getElementById('deviceName').value = record.deviceName;
+                document.getElementById('mac').value = record.mac;
+                document.getElementById('ip').value = record.ip;
+
+                // 滚动到表单顶部
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        // 删除单个历史记录
+        function deleteHistory(event, index) {
+            event.stopPropagation();
+
+            if (confirm('确定要删除这条记录吗？')) {
+                let history = getHistory();
+                history.splice(index, 1);
+                localStorage.setItem('wolHistory', JSON.stringify(history));
+                displayHistory();
+            }
+        }
+
+        // 清空所有历史记录
+        function clearAllHistory() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                localStorage.removeItem('wolHistory');
+                displayHistory();
+            }
+        }
+
+        // HTML转义函数
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
 </body>
 </html>`
 
@@ -205,7 +421,7 @@ func handleWake(w http.ResponseWriter, r *http.Request) {
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
             padding: 40px;
-            max-width: 500px;
+            max-width: 600px;
             width: 100%;
         }
         h1 {
@@ -214,8 +430,14 @@ func handleWake(w http.ResponseWriter, r *http.Request) {
             margin-bottom: 30px;
             font-size: 28px;
         }
+        h2 {
+            color: #555;
+            font-size: 18px;
+            margin-bottom: 15px;
+            margin-top: 30px;
+        }
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
         label {
             display: block;
@@ -276,6 +498,78 @@ func handleWake(w http.ResponseWriter, r *http.Request) {
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .history-section {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e0e0;
+        }
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .clear-all-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #dc3545;
+            width: auto;
+        }
+        .clear-all-btn:hover {
+            background: #c82333;
+        }
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .history-item {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-item:hover {
+            background: #e9ecef;
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+        .history-info {
+            flex: 1;
+        }
+        .history-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .history-details {
+            font-size: 12px;
+            color: #666;
+        }
+        .history-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .delete-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #dc3545;
+            width: auto;
+        }
+        .delete-btn:hover {
+            background: #c82333;
+        }
+        .empty-history {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -286,7 +580,12 @@ func handleWake(w http.ResponseWriter, r *http.Request) {
             {{.Message}}
         </div>
         {{end}}
-        <form action="/wake" method="POST">
+        <form action="/wake" method="POST" id="wakeForm" onsubmit="saveToHistory(event)">
+            <div class="form-group">
+                <label for="deviceName">设备名称（可选）</label>
+                <input type="text" id="deviceName" name="deviceName" placeholder="例如: 我的电脑">
+                <div class="hint">为设备设置一个易记的名称</div>
+            </div>
             <div class="form-group">
                 <label for="mac">目标设备MAC地址</label>
                 <input type="text" id="mac" name="mac" placeholder="例如: AA:BB:CC:DD:EE:FF" required>
@@ -299,7 +598,140 @@ func handleWake(w http.ResponseWriter, r *http.Request) {
             </div>
             <button type="submit">发送唤醒包</button>
         </form>
+
+        <div class="history-section">
+            <div class="history-header">
+                <h2>📋 历史记录</h2>
+                <button class="clear-all-btn" onclick="clearAllHistory()">清空全部</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="empty-history">暂无历史记录</div>
+            </div>
+        </div>
     </div>
+
+    <script>
+        const MAX_HISTORY = 10;
+
+        // 页面加载时显示历史记录
+        window.onload = function() {
+            displayHistory();
+        };
+
+        // 保存到历史记录
+        function saveToHistory(event) {
+            const deviceName = document.getElementById('deviceName').value.trim();
+            const mac = document.getElementById('mac').value.trim();
+            const ip = document.getElementById('ip').value.trim();
+
+            if (!mac) return;
+
+            const record = {
+                deviceName: deviceName || mac,
+                mac: mac,
+                ip: ip,
+                timestamp: new Date().toISOString()
+            };
+
+            let history = getHistory();
+
+            // 检查是否已存在相同MAC地址的记录，如果存在则更新
+            const existingIndex = history.findIndex(item => item.mac.toLowerCase() === mac.toLowerCase());
+            if (existingIndex !== -1) {
+                history.splice(existingIndex, 1);
+            }
+
+            // 添加到开头
+            history.unshift(record);
+
+            // 限制历史记录数量
+            if (history.length > MAX_HISTORY) {
+                history = history.slice(0, MAX_HISTORY);
+            }
+
+            localStorage.setItem('wolHistory', JSON.stringify(history));
+        }
+
+        // 获取历史记录
+        function getHistory() {
+            const history = localStorage.getItem('wolHistory');
+            return history ? JSON.parse(history) : [];
+        }
+
+        // 显示历史记录
+        function displayHistory() {
+            const history = getHistory();
+            const historyList = document.getElementById('historyList');
+
+            if (history.length === 0) {
+                historyList.innerHTML = '<div class="empty-history">暂无历史记录</div>';
+                return;
+            }
+
+            historyList.innerHTML = history.map((record, index) => {
+                const date = new Date(record.timestamp);
+                const dateStr = date.toLocaleString('zh-CN', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return ` + "`" + `
+                    <div class="history-item" onclick="loadFromHistory(${index})">
+                        <div class="history-info">
+                            <div class="history-name">${escapeHtml(record.deviceName)}</div>
+                            <div class="history-details">MAC: ${escapeHtml(record.mac)} | IP: ${escapeHtml(record.ip)} | ${dateStr}</div>
+                        </div>
+                        <div class="history-actions">
+                            <button class="delete-btn" onclick="deleteHistory(event, ${index})">删除</button>
+                        </div>
+                    </div>
+                ` + "`" + `;
+            }).join('');
+        }
+
+        // 从历史记录加载
+        function loadFromHistory(index) {
+            const history = getHistory();
+            if (index >= 0 && index < history.length) {
+                const record = history[index];
+                document.getElementById('deviceName').value = record.deviceName;
+                document.getElementById('mac').value = record.mac;
+                document.getElementById('ip').value = record.ip;
+
+                // 滚动到表单顶部
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        // 删除单个历史记录
+        function deleteHistory(event, index) {
+            event.stopPropagation();
+
+            if (confirm('确定要删除这条记录吗？')) {
+                let history = getHistory();
+                history.splice(index, 1);
+                localStorage.setItem('wolHistory', JSON.stringify(history));
+                displayHistory();
+            }
+        }
+
+        // 清空所有历史记录
+        function clearAllHistory() {
+            if (confirm('确定要清空所有历史记录吗？')) {
+                localStorage.removeItem('wolHistory');
+                displayHistory();
+            }
+        }
+
+        // HTML转义函数
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
 </body>
 </html>`
 
@@ -327,24 +759,31 @@ func sendWakeOnLAN(macAddr string, broadcastIP string) error {
 	// 创建魔术包
 	magicPacket := createMagicPacket(mac)
 
-	// 发送UDP广播包
-	addr, err := net.ResolveUDPAddr("udp", broadcastIP+":9")
+	// 解析广播地址
+	broadcastAddr, err := net.ResolveUDPAddr("udp", broadcastIP+":9")
 	if err != nil {
 		return fmt.Errorf("无法解析广播地址: %v", err)
 	}
 
-	conn, err := net.DialUDP("udp", nil, addr)
+	// 创建UDP连接，监听所有接口
+	localAddr, err := net.ResolveUDPAddr("udp", ":0")
+	if err != nil {
+		return fmt.Errorf("无法解析本地地址: %v", err)
+	}
+
+	conn, err := net.ListenUDP("udp", localAddr)
 	if err != nil {
 		return fmt.Errorf("无法创建UDP连接: %v", err)
 	}
 	defer conn.Close()
 
-	_, err = conn.Write(magicPacket)
+	// 发送魔术包到广播地址
+	n, err := conn.WriteToUDP(magicPacket, broadcastAddr)
 	if err != nil {
 		return fmt.Errorf("发送数据包失败: %v", err)
 	}
 
-	log.Printf("已发送唤醒包到 MAC: %s, 广播地址: %s", macAddr, broadcastIP)
+	log.Printf("已发送唤醒包到 MAC: %s, 广播地址: %s, 发送字节数: %d", macAddr, broadcastIP, n)
 	return nil
 }
 
